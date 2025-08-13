@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  media-service:
+    build: ./backend/services/media-service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/services/media-service:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount the source code, but use a named volume for node_modules
+      # to prevent the host's node_modules from overwriting the container's.
+      - ./frontend:/app
+      - /app/node_modules
+    # Ensure the container stays running for interactive use
+    stdin_open: true
+    tty: true
