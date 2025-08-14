@@ -28,72 +28,47 @@ We will use a **microservices architecture**. This pattern aligns perfectly with
 Below is a diagram and description of the initial set of services.
 
 ```
-+------------------+      +-----------------+      +--------------------+
-|  Frontend Client | <--> |   API Gateway   | <--> |    User Service    |
-| (React/Mobile)   |      | (Routing/Auth)  |      |   (PostgreSQL)     |
-+------------------+      +-------+---------+      +--------------------+
-                                  |
-                   +--------------+--------------+
-                   |              |              |
-+------------------v--+  +---------v-------+  +---v---------------+
-|   Media Service   |  |  Product Service  |  |   Order Service   |
-| (Object Store/AI) |  |   (PostgreSQL)    |  |   (PostgreSQL)    |
-+-------------------+  +-------------------+  +-------------------+
-                   |              |              |
-                   |      +-------v-------+      |
-                   |      | Event Bus /   |      |
-                   |      | Message Queue | <----+
-                   |      +-------+-------+      |
-                   |              |              |
-+------------------v--+  +---------v-------+      |
-|    AI Service     |  |  Engraver Service | <----+
-| (Image Gen/NLP)   |  | (Bluetooth/WiFi)  |
-+-------------------+  +-------------------+
++------------------+      +----------------------+
+|  Frontend Client | <--> |    Media Service     |
+| (React SPA)      |      | (FastAPI, PySerial)  |
++------------------+      +----------------------+
 
 ```
 
 ### Service Descriptions:
 
-- **Frontend Client:** The user-facing application built with a mobile-first philosophy. It will be a Single Page Application (SPA).
-- **API Gateway:** The single entry point for all client requests. It handles routing, authentication, rate limiting, and aggregates responses from various services.
-- **User Service:** Manages user identity, authentication (e.g., JWT), authorization, roles, and profiles.
-- **Media Service:** Responsible for uploading, storing, processing (grayscale, inversion, background removal, vectorization), and managing all media assets. It will interact with the AI Service for complex tasks.
-- **Product Service:** Manages the catalog of engravable products, including their dimensions, materials, and sourcing information.
-- **Order Service:** Handles the entire lifecycle of a customer order, from cart to payment to fulfillment status.
-- **Engraver Service:** The bridge between the digital platform and the physical world. It translates the final design into machine-specific commands and communicates with laser engravers via protocols like Bluetooth or WiFi.
-- **AI Service:** A centralized hub for computationally intensive AI tasks. This includes AI image generation (e.g., text-to-image), natural language processing for user commands, and advanced image analysis.
-- **Event Bus:** An asynchronous messaging backbone (e.g., RabbitMQ, Kafka) that allows services to communicate in a decoupled manner. For example, when an order is `created`, the Order Service publishes an event, and the Engraver Service and Notification Service can subscribe and react to it.
+- **Frontend Client:** A React-based Single Page Application (SPA) that provides the user interface for controlling the laser engraver. It allows the user to upload an image, select a serial port, and initiate the engraving process.
+- **Media Service:** A Python FastAPI backend that provides the core logic for the application. Its responsibilities include:
+    - Processing uploaded images (converting to grayscale, inverting).
+    - Generating G-code from the processed images.
+    - Communicating with the laser engraver over a serial connection to send the G-code.
+    - Listing available serial ports.
 
 ## 4. Data Storage
 
-We will use a polyglot persistence approach:
+The application does not currently use a database or any persistent data storage. All data is processed in memory.
 
-- **PostgreSQL:** A robust relational database for structured data such as users, products, and orders. Its support for JSONB also provides flexibility.
-- **Object Storage (S3/MinIO):** A scalable and cost-effective solution for storing large binary files, primarily the images and media assets in the Media Library.
+## 5. Note on A7 Mini Pro Engraver
 
-This architecture provides a solid, scalable, and flexible foundation upon which to build the platform.
+The current implementation assumes a generic laser engraver that accepts G-code over a standard serial connection. The G-code generation and communication protocols have been implemented based on common standards (like GRBL) but have **not** been tested on an A7 Mini Pro device. The following assumptions have been made:
 
-## 5. Proposed Technology Stack
+- The engraver uses a standard serial/USB connection.
+- The engraver communicates at a baud rate of 115200.
+- The engraver understands standard G-code commands for movement (`G0`, `G1`) and laser control (`M4`, `M5`).
 
-This section details the specific technologies chosen for the initial implementation of the platform.
+Further testing and possible adjustments to the G-code generation and serial communication settings may be required to ensure compatibility with the A7 Mini Pro.
+
+## 6. Technology Stack
 
 - **Frontend:**
     - **Framework:** **React (with Vite)**
-    - **Justification:** React's component-based architecture is ideal for building a complex, maintainable UI. Its vast ecosystem of libraries and strong community support will accelerate development. Vite provides an extremely fast build and development experience.
-    - **Styling:** **Tailwind CSS** for a utility-first approach that enables rapid, responsive, and consistent design.
+    - **Styling:** Default CSS.
 
 - **Backend:**
     - **Framework:** **Python with FastAPI**
-    - **Justification:** Python is the de facto language for AI/ML, giving us direct access to a rich ecosystem of libraries (OpenCV, Pillow, scikit-learn, PyTorch, etc.). FastAPI is a modern, high-performance web framework that supports asynchronous programming out of the box, which is crucial for building scalable and responsive services.
-
-- **Database:**
-    - **Relational:** **PostgreSQL**
-    - **Justification:** PostgreSQL is a powerful, reliable, and open-source object-relational database system. It's well-suited for the structured data of our User, Product, and Order services. Its performance and feature set (like JSONB support) are excellent.
-    - **Object Storage:** **MinIO (S3-compatible)**
-    - **Justification:** For our media library, a dedicated object storage solution is more scalable and cost-effective than storing blobs in a relational database. MinIO provides an S3-compatible API and is easy to self-host for local development.
+    - **Libraries:**
+        - **Pillow:** For image processing.
+        - **PySerial:** For serial communication with the engraver.
 
 - **Infrastructure & Deployment:**
     - **Containerization:** **Docker & Docker Compose**
-    - **Justification:** Docker allows us to package each microservice with its dependencies into a portable container. Docker Compose then enables us to define and run our entire multi-container application stack with a single command, ensuring a consistent environment from development to production.
-    - **Event Bus:** **RabbitMQ**
-    - **Justification:** RabbitMQ is a mature, widely adopted, and reliable message broker. It is perfect for managing asynchronous communication between our microservices, enhancing the resilience and decoupling of the system.

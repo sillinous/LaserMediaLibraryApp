@@ -1,78 +1,127 @@
 import io
-from fastapi import FastAPI, File, UploadFile
+import serial
+import serial.tools.list_ports
+from fastapi import FastAPI, File, UploadFile, Response, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from PIL import Image, ImageOps
 
 app = FastAPI(
     title="Laser Engraving Media Service",
-    description="A service to process images for laser engraving.",
+    description="A service to process images for laser engraving and G-code generation.",
     version="1.0.0",
 )
 
-def process_image_for_engraving(image_bytes: bytes) -> io.BytesIO:
+def process_image(image_bytes: bytes) -> Image:
     """
-    Processes an image for laser engraving by converting it to grayscale,
-    inverting it, and making the white background transparent.
+    Processes an image for engraving by converting it to grayscale and inverting it.
     """
-    # Open the image from the in-memory bytes
     image = Image.open(io.BytesIO(image_bytes))
+    image = image.convert("L")  # Convert to grayscale
+    image = ImageOps.invert(image)  # Invert colors
+    return image
 
-    # 1. Convert to grayscale ('L' mode)
-    # This simplifies the image to shades of gray, which is what most
-    # laser engravers work with.
-    image = image.convert("L")
+def generate_gcode_from_image(image: Image, threshold: int = 128, laser_power: int = 1000, travel_speed: int = 3000, engraving_speed: int = 300) -> str:
+    """
+    Generates G-code from a PIL image using a simple threshold and dot matrix method.
+    """
+    gcode_lines = [
+        "G90",  # Absolute positioning
+        "G21",  # Units to millimeters
+        "M4",   # Dynamic laser power mode
+        f"F{travel_speed}", # Set travel speed
+    ]
 
-    # 2. Invert the image
-    # In laser engraving, black areas are typically engraved. Inverting the image
-    # means that the dark parts of the original image will be engraved.
-    image = ImageOps.invert(image)
+    width, height = image.size
+    pixels = image.load()
 
-    # 3. Make the background transparent
-    # We will convert the image to RGBA to have an alpha channel.
-    # We then find all pixels that were originally white (now black after inversion)
-    # and make them fully transparent. This prevents the background from being engraved.
-    image = image.convert("RGBA")
-    datas = image.getdata()
+    for y in range(height):
+        for x in range(width):
+            if pixels[x, y] > threshold:
+                # Move to pixel position
+                gcode_lines.append(f"G0 X{x * 0.1:.2f} Y{y * 0.1:.2f}")
+                # Turn laser on
+                gcode_lines.append(f"G1 S{laser_power} F{engraving_speed}")
+                # Move a tiny bit to make a dot
+                gcode_lines.append(f"G1 X{(x + 0.05) * 0.1:.2f}")
+                # Turn laser off
+                gcode_lines.append("G1 S0")
 
-    newData = []
-    for item in datas:
-        # If the pixel was black (0) after inversion, make it transparent
-        if item[0] == 0 and item[1] == 0 and item[2] == 0:
-            newData.append((255, 255, 255, 0))  # Add a transparent pixel
-        else:
-            newData.append(item)  # Keep the original pixel
+    gcode_lines.extend([
+        "M5",   # Turn off laser
+        "G0 X0 Y0", # Return to home
+    ])
 
-    image.putdata(newData)
+    return "\n".join(gcode_lines)
 
-    # Save the processed image to an in-memory buffer
-    buffer = io.BytesIO()
-    image.save(buffer, "PNG")
-    buffer.seek(0)
-
-    return buffer
 
 @app.get("/", summary="Root endpoint")
 def read_root():
     """A simple endpoint to confirm the service is running."""
     return {"message": "Welcome to the Media Service"}
 
-@app.post("/process-image/", summary="Process an image for engraving")
+@app.post("/process-image/", summary="Process an image for engraving preview")
 async def create_upload_file(file: UploadFile = File(...)):
     """
-    Upload an image, process it for laser engraving, and return the result.
-
-    The processing pipeline is as follows:
-    1.  **Convert to Grayscale:** Removes color information.
-    2.  **Invert Colors:** Dark areas become light, light areas become dark.
-    3.  **Make White Background Transparent:** Ensures the background is not engraved.
-
-    The processed image is returned as a PNG file.
+    Upload an image, process it for laser engraving, and return the result for preview.
+    The background is made transparent to help visualize the engraving.
     """
-    # Read the contents of the uploaded file
     contents = await file.read()
+    image = process_image(contents)
 
-    # Process the image
-    processed_image_buffer = process_image_for_engraving(contents)
+    # Make the background transparent for previewing
+    image = image.convert("RGBA")
+    datas = image.getdata()
+    newData = []
+    for item in datas:
+        if item[0] < 128: # Inverted image, so dark areas are the background
+            newData.append((255, 255, 255, 0))
+        else:
+            newData.append(item)
+    image.putdata(newData)
 
-    # Return the processed image as a streaming response
-    return StreamingResponse(processed_image_buffer, media_type="image/png")
+    # Save the processed image to an in-memory buffer
+    buffer = io.BytesIO()
+    image.save(buffer, "PNG")
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="image/png")
+
+@app.post("/generate-gcode/", summary="Generate G-code from an image")
+async def generate_gcode_endpoint(file: UploadFile = File(...)):
+    """
+    Upload an image, process it, and generate G-code for laser engraving.
+    """
+    contents = await file.read()
+    image = process_image(contents)
+    gcode = generate_gcode_from_image(image)
+    return Response(content=gcode, media_type="text/plain")
+
+class GcodePayload(BaseModel):
+    port: str
+    gcode: str
+
+@app.get("/list-serial-ports", summary="List available serial ports")
+def list_serial_ports():
+    """Returns a list of available serial ports."""
+    ports = [port.device for port in serial.tools.list_ports.comports()]
+    return {"ports": ports}
+
+@app.post("/send-gcode", summary="Send G-code to a serial port")
+def send_gcode(payload: GcodePayload):
+    """
+    Sends G-code to the specified serial port.
+    """
+    try:
+        with serial.Serial(payload.port, baudrate=115200, timeout=1) as ser:
+            ser.write(b'\n') # Wake up grbl
+            ser.reset_input_buffer()
+            for line in payload.gcode.split('\n'):
+                line = line.strip()
+                if line:
+                    ser.write((line + '\n').encode('utf-8'))
+                    response = ser.readline().decode('utf-8').strip()
+                    if 'error' in response:
+                        raise HTTPException(status_code=400, detail=f"Engraver error: {response}")
+        return {"message": "G-code sent successfully."}
+    except serial.SerialException as e:
+        raise HTTPException(status_code=500, detail=str(e))

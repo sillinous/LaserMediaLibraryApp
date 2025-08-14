@@ -1,3 +1,5 @@
 fastapi
 uvicorn[standard]
 Pillow
+pyserial
+python-multipart
