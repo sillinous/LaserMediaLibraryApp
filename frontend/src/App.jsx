@@ -4,29 +4,40 @@ import './App.css';
 function App() {
   const [ports, setPorts] = useState([]);
   const [selectedPort, setSelectedPort] = useState('');
+  const [presets, setPresets] = useState([]);
+  const [selectedPreset, setSelectedPreset] = useState('Default');
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [status, setStatus] = useState('Ready');
   const [gcode, setGcode] = useState('');
 
   useEffect(() => {
-    // Fetch serial ports when the component mounts
-    const fetchPorts = async () => {
+    const fetchInitialData = async () => {
       try {
-        setStatus('Fetching serial ports...');
-        const response = await fetch('/list-serial-ports');
-        const data = await response.json();
-        setPorts(data.ports);
-        if (data.ports.length > 0) {
-          setSelectedPort(data.ports[0]);
+        setStatus('Fetching initial data...');
+        // Fetch serial ports
+        const portsResponse = await fetch('/list-serial-ports');
+        const portsData = await portsResponse.json();
+        setPorts(portsData.ports);
+        if (portsData.ports.length > 0) {
+          setSelectedPort(portsData.ports[0]);
         }
+
+        // Fetch presets
+        const presetsResponse = await fetch('/list-presets');
+        const presetsData = await presetsResponse.json();
+        setPresets(presetsData.presets);
+        if (presetsData.presets.length > 0) {
+          setSelectedPreset(presetsData.presets[0]);
+        }
+
         setStatus('Ready');
       } catch (error) {
-        console.error('Error fetching serial ports:', error);
-        setStatus('Error fetching serial ports.');
+        console.error('Error fetching initial data:', error);
+        setStatus('Error fetching initial data.');
       }
     };
-    fetchPorts();
+    fetchInitialData();
   }, []);
 
   const handleFileChange = async (event) => {
@@ -65,7 +76,7 @@ function App() {
       setStatus('Generating G-code...');
       const formData = new FormData();
       formData.append('file', selectedFile);
-      const gcodeResponse = await fetch('/generate-gcode/', {
+      const gcodeResponse = await fetch(`/generate-gcode/?preset=${selectedPreset}`, {
         method: 'POST',
         body: formData,
       });
@@ -101,22 +112,39 @@ function App() {
     <div className="App">
       <h1>Laser Engraver Control</h1>
       <div className="card">
-        <h2>1. Select Serial Port</h2>
-        <select
-          value={selectedPort}
-          onChange={(e) => setSelectedPort(e.target.value)}
-          disabled={ports.length === 0}
-        >
-          {ports.length > 0 ? (
-            ports.map((port) => (
-              <option key={port} value={port}>
-                {port}
+        <h2>1. Select Device and Material</h2>
+        <div className="form-group">
+          <label>Serial Port:</label>
+          <select
+            value={selectedPort}
+            onChange={(e) => setSelectedPort(e.target.value)}
+            disabled={ports.length === 0}
+          >
+            {ports.length > 0 ? (
+              ports.map((port) => (
+                <option key={port} value={port}>
+                  {port}
+                </option>
+              ))
+            ) : (
+              <option>No ports found</option>
+            )}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Material Preset:</label>
+          <select
+            value={selectedPreset}
+            onChange={(e) => setSelectedPreset(e.target.value)}
+            disabled={presets.length === 0}
+          >
+            {presets.map((preset) => (
+              <option key={preset} value={preset}>
+                {preset}
               </option>
-            ))
-          ) : (
-            <option>No ports found</option>
-          )}
-        </select>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="card">

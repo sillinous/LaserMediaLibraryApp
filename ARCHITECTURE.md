@@ -41,6 +41,7 @@ Below is a diagram and description of the initial set of services.
 - **Media Service:** A Python FastAPI backend that provides the core logic for the application. Its responsibilities include:
     - Processing uploaded images (converting to grayscale, inverting).
     - Generating G-code from the processed images.
+    - Managing and serving material presets (e.g., for wood, leather).
     - Communicating with the laser engraver over a serial connection to send the G-code.
     - Listing available serial ports.
 

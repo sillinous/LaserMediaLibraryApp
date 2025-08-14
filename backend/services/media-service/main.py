@@ -1,7 +1,7 @@
 import io
 import serial
 import serial.tools.list_ports
-from fastapi import FastAPI, File, UploadFile, Response, HTTPException
+from fastapi import FastAPI, File, UploadFile, Response, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from PIL import Image, ImageOps
@@ -11,6 +11,14 @@ app = FastAPI(
     description="A service to process images for laser engraving and G-code generation.",
     version="1.0.0",
 )
+
+PRESETS = {
+    "Default": {"laser_power": 1000, "travel_speed": 3000, "engraving_speed": 300},
+    "Soft Wood": {"laser_power": 800, "travel_speed": 3000, "engraving_speed": 500},
+    "Hard Wood": {"laser_power": 1000, "travel_speed": 3000, "engraving_speed": 300},
+    "Leather": {"laser_power": 700, "travel_speed": 4000, "engraving_speed": 600},
+    "Cardboard": {"laser_power": 500, "travel_speed": 5000, "engraving_speed": 800},
+}
 
 def process_image(image_bytes: bytes) -> Image:
     """
@@ -86,14 +94,26 @@ async def create_upload_file(file: UploadFile = File(...)):
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="image/png")
 
+@app.get("/list-presets", summary="List available material presets")
+def list_presets():
+    """Returns a list of available material presets."""
+    return {"presets": list(PRESETS.keys())}
+
 @app.post("/generate-gcode/", summary="Generate G-code from an image")
-async def generate_gcode_endpoint(file: UploadFile = File(...)):
+async def generate_gcode_endpoint(
+    file: UploadFile = File(...),
+    preset: str | None = Query(default="Default")
+):
     """
     Upload an image, process it, and generate G-code for laser engraving.
+    Optionally, a `preset` can be specified to use predefined settings.
     """
     contents = await file.read()
     image = process_image(contents)
-    gcode = generate_gcode_from_image(image)
+
+    settings = PRESETS.get(preset, PRESETS["Default"])
+    gcode = generate_gcode_from_image(image, **settings)
+
     return Response(content=gcode, media_type="text/plain")
 
 class GcodePayload(BaseModel):

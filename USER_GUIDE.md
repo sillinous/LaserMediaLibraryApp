@@ -41,10 +41,9 @@ To use this application, you will need:
 
 The web interface provides a simple step-by-step process for engraving an image.
 
-### 1. Select Serial Port
-- The application will automatically detect available serial ports on your computer.
-- Select the serial port corresponding to your laser engraver from the dropdown menu.
-- If no ports are found, see the [Troubleshooting](#troubleshooting) section.
+### 1. Select Device and Material
+- **Serial Port:** The application will automatically detect available serial ports on your computer. Select the serial port corresponding to your laser engraver from the dropdown menu.
+- **Material Preset:** Select a material from the dropdown menu. This will automatically configure the laser power and speed settings for optimal results with that material.
 
 ### 2. Upload Image
 - Click the "Choose File" button to select an image from your computer.
@@ -64,8 +63,9 @@ The web interface provides a simple step-by-step process for engraving an image.
 The backend service exposes several API endpoints that can be used for programmatic control. The service runs at `http://localhost:8000`.
 
 - `GET /list-serial-ports`: Returns a JSON object with a list of available serial ports.
+- `GET /list-presets`: Returns a JSON object with a list of available material presets.
 - `POST /process-image/`: Upload an image file to get a processed preview image (PNG).
-- `POST /generate-gcode/`: Upload an image file to get the generated G-code as plain text.
+- `POST /generate-gcode/`: Upload an image file to get the generated G-code as plain text. Can optionally take a `preset` query parameter.
 - `POST /send-gcode`: Send a JSON payload with `port` and `gcode` to start the engraving process.
 
 ## Troubleshooting
