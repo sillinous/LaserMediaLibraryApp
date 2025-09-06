@@ -45,10 +45,13 @@ The web interface provides a simple step-by-step process for engraving an image.
 - **Serial Port:** The application will automatically detect available serial ports on your computer. Select the serial port corresponding to your laser engraver from the dropdown menu.
 - **Material Preset:** Select a material from the dropdown menu. This will automatically configure the laser power and speed settings for optimal results with that material.
 
-### 2. Upload Image
-- Click the "Choose File" button to select an image from your computer.
-- The application supports common image formats like PNG, JPEG, and BMP.
-- A preview of the processed image will be displayed. The preview shows which parts of the image will be engraved (the darker areas).
+### 2. Create Your Design
+You have two options for creating a design:
+
+- **Upload an Image:** Click the "Choose File" button to select an image from your computer.
+- **Generate with AI:** Enter a text description of the image you want to create (e.g., "a majestic lion head") and click the "Generate" button. This will use an AI model to create an image from your prompt.
+
+A preview of the processed image will be displayed.
 
 ### 3. Start Engraving
 - Once you have selected a serial port and an image, click the "Start Engraving" button.
@@ -64,6 +67,7 @@ The backend service exposes several API endpoints that can be used for programma
 
 - `GET /list-serial-ports`: Returns a JSON object with a list of available serial ports.
 - `GET /list-presets`: Returns a JSON object with a list of available material presets.
+- `POST /generate-ai-image/`: Generate an image from a text prompt. Takes a `prompt` query parameter.
 - `POST /process-image/`: Upload an image file to get a processed preview image (PNG).
 - `POST /generate-gcode/`: Upload an image file to get the generated G-code as plain text. Can optionally take a `preset` query parameter.
 - `POST /send-gcode`: Send a JSON payload with `port` and `gcode` to start the engraving process.

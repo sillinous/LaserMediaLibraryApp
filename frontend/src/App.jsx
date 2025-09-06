@@ -10,6 +10,32 @@ function App() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [status, setStatus] = useState('Ready');
   const [gcode, setGcode] = useState('');
+  const [prompt, setPrompt] = useState('');
+
+  const handleGenerateAiImage = async () => {
+    if (!prompt) {
+      setStatus('Please enter a prompt.');
+      return;
+    }
+    try {
+      setStatus('Generating AI image...');
+      const response = await fetch(`/generate-ai-image/?prompt=${encodeURIComponent(prompt)}`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to generate AI image.');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+      setSelectedFile(new File([blob], "ai_generated_image.png", { type: "image/png" }));
+      setStatus('AI image generated successfully.');
+    } catch (error) {
+      console.error('Error generating AI image:', error);
+      setStatus(`Error: ${error.message}`);
+    }
+  };
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -148,10 +174,29 @@ function App() {
       </div>
 
       <div className="card">
-        <h2>2. Upload Image</h2>
-        <input type="file" accept="image/*" onChange={handleFileChange} />
-        {previewUrl && (
+        <h2>2. Create Your Design</h2>
+        <div className="design-choice">
           <div>
+            <h3>Upload Image</h3>
+            <input type="file" accept="image/*" onChange={handleFileChange} />
+          </div>
+          <div className="or-divider">OR</div>
+          <div>
+            <h3>Generate with AI</h3>
+            <div className="form-group">
+              <input
+                type="text"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="e.g., a majestic lion head"
+                style={{ width: '250px', marginRight: '10px' }}
+              />
+              <button onClick={handleGenerateAiImage}>Generate</button>
+            </div>
+          </div>
+        </div>
+        {previewUrl && (
+          <div style={{marginTop: '20px'}}>
             <h3>Preview</h3>
             <img src={previewUrl} alt="Preview" style={{ maxWidth: '300px', border: '1px solid #ccc' }} />
           </div>

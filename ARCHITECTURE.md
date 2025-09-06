@@ -28,22 +28,23 @@ We will use a **microservices architecture**. This pattern aligns perfectly with
 Below is a diagram and description of the initial set of services.
 
 ```
-+------------------+      +----------------------+
-|  Frontend Client | <--> |    Media Service     |
-| (React SPA)      |      | (FastAPI, PySerial)  |
-+------------------+      +----------------------+
-
++------------------+      +----------------------+      +--------------------+
+|  Frontend Client | <--> |    Media Service     | <--> |   OpenAI API       |
+| (React SPA)      |      | (FastAPI, PySerial)  |      | (External Service) |
++------------------+      +----------------------+      +--------------------+
 ```
 
 ### Service Descriptions:
 
 - **Frontend Client:** A React-based Single Page Application (SPA) that provides the user interface for controlling the laser engraver. It allows the user to upload an image, select a serial port, and initiate the engraving process.
 - **Media Service:** A Python FastAPI backend that provides the core logic for the application. Its responsibilities include:
+    - Generating images from text prompts by calling the OpenAI API.
     - Processing uploaded images (converting to grayscale, inverting).
     - Generating G-code from the processed images.
     - Managing and serving material presets (e.g., for wood, leather).
     - Communicating with the laser engraver over a serial connection to send the G-code.
     - Listing available serial ports.
+- **OpenAI API:** An external service used for generating images from text prompts.
 
 ## 4. Data Storage
 

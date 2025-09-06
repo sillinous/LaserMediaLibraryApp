@@ -1,10 +1,16 @@
 import io
+import os
 import serial
 import serial.tools.list_ports
+import openai
+import base64
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, UploadFile, Response, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from PIL import Image, ImageOps
+
+load_dotenv()
 
 app = FastAPI(
     title="Laser Engraving Media Service",
@@ -93,6 +99,34 @@ async def create_upload_file(file: UploadFile = File(...)):
     image.save(buffer, "PNG")
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="image/png")
+
+@app.post("/generate-ai-image/", summary="Generate an image from a text prompt")
+async def generate_ai_image(prompt: str = Query(...)):
+    """
+    Generates an image using the OpenAI DALL-E 3 model from a text prompt.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key or api_key == "your_api_key_here":
+        raise HTTPException(
+            status_code=500,
+            detail="OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable.",
+        )
+
+    client = openai.OpenAI(api_key=api_key)
+
+    try:
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size="1024x1024",
+            quality="standard",
+            n=1,
+            response_format="b64_json",
+        )
+        image_data = io.BytesIO(base64.b64decode(response.data[0].b64_json))
+        return StreamingResponse(image_data, media_type="image/png")
+    except openai.OpenAIError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/list-presets", summary="List available material presets")
 def list_presets():
